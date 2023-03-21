@@ -34,7 +34,7 @@ class Parent extends Component {
   }
   registerStyle() {
     return `
-              h1 {
+              p {
                   color: red;
               }
           `
