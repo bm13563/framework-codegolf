@@ -1,6 +1,11 @@
 import { Component } from "./framework"
 
 class Parent extends Component {
+  registerProps() {
+    return {
+      title: true,
+    }
+  }
   registerState() {
     return {
       text: "Hello World",
@@ -22,9 +27,13 @@ class Parent extends Component {
   registerTemplate() {
     return `
               <div class="component-container">
+                ${this.components.child.test({
+                  text: this.state.text,
+                  onClick: this.functions.onClick,
+                })}
                   <h1>${this.props.title}</h1>
-                  <p data-bind="text">${this.state.text}</p>
-                  ${this.components.child.mount({
+                  <p>${this.state.text}</p>
+                  ${this.components.child.test({
                     text: this.state.text,
                     onClick: this.functions.onClick,
                   })}
@@ -42,6 +51,12 @@ class Parent extends Component {
 }
 
 class Child extends Component {
+  registerProps() {
+    return {
+      text: true,
+      onClick: false,
+    }
+  }
   registerState() {
     return {
       text: "ello",
@@ -50,7 +65,8 @@ class Child extends Component {
   registerFunctions() {
     return {
       handleClick: () => {
-        this.props.onClick()
+        console.log("fire")
+        this.props.onClick && this.props.onClick()
         this.state.text = this.state.text === "ello" ? "Hello" : "ello"
       },
     }
@@ -58,7 +74,7 @@ class Child extends Component {
   registerTemplate() {
     return `
               <div>
-                  <p data-bind="text">${this.state.text}</p>
+                  <p>${this.state.text}</p>
                   <button data-on="click:handleClick">Click me</button>
               </div>
           `
@@ -66,4 +82,4 @@ class Child extends Component {
 }
 
 const app = new Parent()
-document.body.appendChild(app.mount({ title: "My App" }, true))
+document.body.appendChild(app.test({ title: "My App" }, true))

@@ -18,10 +18,13 @@ export class Component {
     })
     styleElement.innerHTML = parsedStyles.join("\n")
     styleElement.removeAttribute("media")
+    Component._instance = this;
+    Component._blah.push(this)
     this.onCreated?.()
   }
 
   mount(props, root = false) {
+    console.log(Component._blah, this)
     this._root = root
     this.onMount?.()
     this.props = props
