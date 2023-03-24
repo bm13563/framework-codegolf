@@ -27,13 +27,13 @@ class Parent extends Component {
   registerTemplate() {
     return `
               <div class="component-container">
-                ${this.components.child.test({
+                ${this.components.child.mount({
                   text: this.state.text,
                   onClick: this.functions.onClick,
                 })}
                   <h1>${this.props.title}</h1>
                   <p>${this.state.text}</p>
-                  ${this.components.child.test({
+                  ${this.components.child.mount({
                     text: this.state.text,
                     onClick: this.functions.onClick,
                   })}
@@ -65,7 +65,6 @@ class Child extends Component {
   registerFunctions() {
     return {
       handleClick: () => {
-        console.log("fire")
         this.props.onClick && this.props.onClick()
         this.state.text = this.state.text === "ello" ? "Hello" : "ello"
       },
@@ -82,4 +81,4 @@ class Child extends Component {
 }
 
 const app = new Parent()
-document.body.appendChild(app.test({ title: "My App" }, true))
+document.body.appendChild(app.mount({ title: "My App" }, true))
