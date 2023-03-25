@@ -34,7 +34,7 @@
               <div class="component-container">
                   <h1>${this.props.title}</h1>
                   <p data-bind="text">${this.state.text}</p>
-                  ${this.components.child.mount({
+                  ${this.components.child({
                     text: this.state.text,
                     onClick: this.functions.onClick,
                   })}
