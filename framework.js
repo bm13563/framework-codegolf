@@ -9,7 +9,12 @@ export class Component {
     Component._instances[key] = this
     this.onCreate?.()
     this._id = `----${Math.random().toString(36).substring(2, 9)}`
-    this.components = this.parseComponents(this.registerComponents?.() || {})
+    this.components = Object.fromEntries(
+      Object.entries(this.registerComponents?.() || {}).map(([key, value]) => [
+        key,
+        (props, root = false) => new value().mount(props, root),
+      ]),
+    )
     this.functions = this.registerFunctions?.() || {}
     this.propDefinitions = this.registerProps?.() || {}
     this.props = {}
@@ -25,15 +30,6 @@ export class Component {
     styleElement.innerHTML = parsedStyles.join("\n")
     styleElement.removeAttribute("media")
     this.onCreated?.()
-  }
-
-  parseComponents(components) {
-    return Object.fromEntries(
-      Object.entries(components).map(([key, value]) => [
-        key,
-        (props, root = false) => new value().mount(props, root),
-      ]),
-    )
   }
 
   mount(props, root) {

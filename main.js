@@ -31,6 +31,7 @@ class Parent extends Component {
                   text: this.state.text,
                   onClick: this.functions.onClick,
                 })}
+                  ${this.fragment()}
                   <h1>${this.props.title}</h1>
                   <p>${this.state.text}</p>
                   ${this.components.child({
@@ -41,10 +42,18 @@ class Parent extends Component {
               </div>
           `
   }
+  fragment() {
+    return `
+            <p class="fragment" data-on="click:onClick">${this.props.title}</p>
+        `
+  }
   registerStyle() {
     return `
               p {
                   color: red;
+              }
+              .fragment:hover {
+                  color: green;
               }
           `
   }
