@@ -96,9 +96,12 @@ export class Component {
 
   #getInstanceKey() {
     const stack = new Error().stack.split("\n")
-    let instanceKey = stack[4]
-    if (instanceKey.includes("Object.$$factory")) {
-      instanceKey = stack[5]
+    const registerIndex = stack.findIndex(s => s.includes("registerTemplate"))
+    let instanceKey
+    if (registerIndex > 0) {
+      instanceKey = stack[registerIndex]
+    } else {
+      instanceKey = stack[4]
     }
     return instanceKey.trim()
   }
@@ -141,7 +144,7 @@ export class Component {
       const instance = Component.#instances.get(instanceKey)
       const selector = `[data-__${instance.#id}][data-on]`
 
-      const elements = element.querySelectorAll(selector)
+      const elements = element.parentNode.querySelectorAll(selector)
 
       elements.forEach(element => {
         const [eventType, handler] = element.dataset.on.split(":")
@@ -152,14 +155,20 @@ export class Component {
 
   #bindElementToDom(element) {
     const targetElement = document.activeElement
-    const caretPosition = targetElement.selectionStart
+    const selectionStart = targetElement.selectionStart
+    const selectionEnd = targetElement.selectionEnd
+    window.getSelection().removeAllRanges()
     const rootQuery = `[data-__${this.#id}="root----"]`
     document.querySelector(rootQuery)?.replaceWith(element)
 
     if (targetElement.nodeName !== "BODY") {
       const newActiveElement = this.#findActiveElement(targetElement)
       newActiveElement?.focus()
-      newActiveElement?.setSelectionRange(caretPosition, caretPosition)
+      try {
+        newActiveElement?.setSelectionRange(selectionStart, selectionEnd)
+      } catch {
+        true
+      }
     }
 
     this.#root = false
@@ -193,11 +202,12 @@ export class Component {
         const newKey = [...keyPath, key].join(".")
         const newValue = JSON.stringify(state[key])
 
-        if (this.#watchedState[newKey] && this.#watchedState[newKey] !== newValue) {
+        if (this.#watchedState[newKey] && this.#watchedState[newKey] != newValue) {
+          this.#watchedState[newKey] = newValue
           watchers[key](newValue, JSON.parse(this.#watchedState[newKey]))
+        } else {
+          this.#watchedState[newKey] = newValue
         }
-
-        this.#watchedState[newKey] = newValue
       }
     })
   }
@@ -242,12 +252,12 @@ export class Component {
         }
       },
       set: (stateObject, propertyName, newPropertyValue) => {
-        if (stateObject[propertyName] !== newPropertyValue) {
+        if (stateObject[propertyName] != newPropertyValue) {
           stateObject[propertyName] = newPropertyValue
-          this.#root = true
-          this.onUpdate()
-          this.render()
-          this.onUpdated()
+          self.#root = true
+          self.onUpdate()
+          self.render()
+          self.onUpdated()
         }
         return true
       },
@@ -265,10 +275,9 @@ export class Component {
     const containerElement = document.createElement("div")
 
     const template = this.registerTemplate()
-    containerElement.innerHTML = template.replace(
-      /(?<=<[^\/]*)(?<!----")>/g,
-      ` data-__${this.#id}="----">`,
-    )
+    containerElement.innerHTML = template
+      .replace(/(?<=<[^\/][^>]*)(?<!----")>/g, ` data-__${this.#id}="----">`)
+      .replace(/\n/g, "")
 
     if (containerElement.childElementCount > 1) {
       throw new Error(`Component ${this.constructor.name} must have a single root element`)
