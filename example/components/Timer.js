@@ -44,7 +44,17 @@ export class Timer extends Component {
         <h2 class="timer__display">${formattedTime}</h2>
         <div class="timer__controls">
           <div>
-            ${this.state.timerId ? this.stopButton() : this.startButton()}
+            ${
+              this.state.timerId
+                ? this.components.button({
+                    text: "Stop",
+                    onClick: this.functions.stopTimer,
+                  })
+                : this.components.button({
+                    text: "Start",
+                    onClick: this.functions.startTimer,
+                  })
+            }
           </div>
           <div class="timer__button-right">
             ${this.components.button({
@@ -54,22 +64,6 @@ export class Timer extends Component {
           </div>
         </div>
       </div>
-    `
-  }
-  stopButton() {
-    return `
-      ${this.components.button({
-        text: "Stop",
-        onClick: this.functions.stopTimer,
-      })}
-    `
-  }
-  startButton() {
-    return `
-      ${this.components.button({
-        text: "Start",
-        onClick: this.functions.startTimer,
-      })}
     `
   }
   registerStyle() {

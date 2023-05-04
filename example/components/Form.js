@@ -3,6 +3,7 @@ import { Button } from "./atoms/Button.js"
 import { colorTheme } from "../styles.js"
 
 export class Form extends Component {
+  _debug = true
   registerProps() {
     return {
       onSubmit: false,
@@ -25,7 +26,10 @@ export class Form extends Component {
   registerFunctions() {
     return {
       handleChange: event => {
-        const { name, value } = event.target
+        let { name, value } = event.target
+        if (name) {
+          name = name.toLowerCase()
+        }
         const errors = { ...this.state.errors }
 
         switch (name) {
@@ -41,7 +45,6 @@ export class Form extends Component {
           default:
             break
         }
-
         this.state[name] = value
         this.state.errors = errors
       },
@@ -54,32 +57,29 @@ export class Form extends Component {
     }
   }
   registerComponents() {
-    return { button: Button }
+    return { button: Button, textbox: Textbox }
   }
   registerTemplate() {
     return `
       <form class="form__container" data-on="submit:handleSubmit">
-        <div class="form__input-container">
-          <label for="name">Name:</label>
-          <p class="form__error">${this.state.errors.name}</p>
-          <input type="text" name="name" value="${
-            this.state.name
-          }" data-on="input:handleChange" required>
-        </div>
-        <div class="form__input-container">
-          <label for="email">Email:</label>
-          <p class="form__error">${this.state.errors.email}</p>
-          <input type="text" name="email" value="${
-            this.state.email
-          }" data-on="input:handleChange" required>
-        </div>
-        <div class="form__input-container">
-          <label for="password">Password:</label>
-          <p class="form__error">${this.state.errors.password}</p>
-          <input type="text" name="password" value="${
-            this.state.password
-          }" data-on="input:handleChange" required>
-        </div>
+        ${this.components.textbox({
+          name: "Name",
+          value: this.state.name,
+          error: this.state.errors.name,
+          onChange: this.functions.handleChange,
+        })}
+        ${this.components.textbox({
+          name: "Email",
+          value: this.state.email,
+          error: this.state.errors.email,
+          onChange: this.functions.handleChange,
+        })}
+        ${this.components.textbox({
+          name: "Password",
+          value: this.state.password,
+          error: this.state.errors.password,
+          onChange: this.functions.handleChange,
+        })}
         <div class="form__submit">
           ${this.components.button({ text: "Submit", onClick: () => undefined })}
         </div>
@@ -121,7 +121,59 @@ export class Form extends Component {
         outline: none;
         box-shadow: 0 0 0 2px #5e81ac;
       }
-      .form__error {
+    `
+  }
+}
+
+
+export class Textbox extends Component {
+  registerProps() {
+    return {
+      placeholder: false,
+      name: true,
+      value: true,
+      error: false,
+      onChange: true,
+    }
+  }
+  registerFunctions() {
+    return {
+      handleChange: event => {
+        this.props.onChange(event)
+      },
+    }
+  }
+  registerTemplate() {
+    return `
+      <div class="textbox__container">
+        <label for="${this.props.name}">${this.props.name}</label>
+        ${this.props.error ? `<p class="textbox__error">Error found: ${this.props.error}</p>` : ""}
+        <input 
+          type="text" 
+          name="${this.props.name}" 
+          value="${this.props.value}" 
+          data-on="input:handleChange" 
+          required
+        >
+      </div>
+    `
+  }
+  registerStyle() {
+    return `
+      .textbox__container label {
+        font-size: 1.2rem;
+        margin-right: 1rem;
+        font-weight: 600;
+      }
+      .textbox__container input {
+        padding: 0.5rem;
+        font-size: 1rem;
+        border-radius: 0.5rem;
+        border: none;
+        margin-bottom: 1rem;
+        width: 100%;
+      }
+      .textbox__error {
         color: ${colorTheme.textError}
       }
     `

@@ -6,31 +6,31 @@ export class Component {
   #watchedState
   static #instanceKeys = []
   static #instances = new WeakMap()
+  _debug = false
 
-  constructor() {
-    const instanceKey = this.#getInstanceKey()
+  constructor(key = "documentroot") {
+    const instanceKey = key
     const existingWeakInstanceKey = Component.#instanceKeys.find(k => k.instanceKey === instanceKey)
 
     if (existingWeakInstanceKey) {
       return Component.#instances.get(existingWeakInstanceKey)
     }
-
     const newWeakInstanceKey = { instanceKey }
     Component.#instanceKeys.push(newWeakInstanceKey)
     Component.#instances.set(newWeakInstanceKey, this)
 
     this.onCreate()
 
-    this.#id = Math.random().toString(36).substring(2, 9)
+    this.#id = key
     this.#root = false
+    this.props = {}
     this.#propDefinitions = this.registerProps()
     this.#watchers = this.registerWatchers()
     this.#watchedState = {}
-
     this.state = {}
     this.functions = this.registerFunctions()
+    this.compiledTemplate = this.#compileTemplate()
     this.components = this.#createComponentFactories()
-
     this.#mountStyles()
 
     this.onCreated()
@@ -90,27 +90,11 @@ export class Component {
     return ""
   }
 
-  registerGlobalStyle() {
-    return ""
-  }
-
-  #getInstanceKey() {
-    const stack = new Error().stack.split("\n")
-    const registerIndex = stack.findIndex(s => s.includes("registerTemplate"))
-    let instanceKey
-    if (registerIndex > 0) {
-      instanceKey = stack[registerIndex]
-    } else {
-      instanceKey = stack[4]
-    }
-    return instanceKey.trim()
-  }
-
   #createComponentFactories() {
     const components = this.registerComponents()
 
     const componentPairs = Object.entries(components).map(([key, Component]) => {
-      const $$factory = (props, root = false) => new Component().mount(props, root)
+      const $$factory = (key, props, root = false) => new Component(key).mount(props, root)
       return [key, $$factory]
     })
 
@@ -122,6 +106,27 @@ export class Component {
     return factories
   }
 
+  #compileTemplate() {
+    let templateString = `${this.registerTemplate}`
+    templateString = templateString
+      .slice(templateString.indexOf("{") + 1, templateString.lastIndexOf("}"))
+      .replace(/(<[a-zA-Z1-9]+)([^\$<]*\${this.(state|props).([a-zA-Z1-9]+))/g, (_, group1, group2) => {
+        const randomStr = Math.random().toString(36).substring(2, 9);
+        return `${group1} data-reactive="${randomStr}" ${group2}`
+      })
+      .replace(/(<[a-zA-Z1-9]+)/g, `$1 data-${this.#id}`)
+      .replace(/(<[a-zA-Z1-9]+)/, `$1 data-root`)
+      .replace(/(this\.components\.[^\(]*\(){/g, (_, group1) => {
+        const randomStr = Math.random().toString(36).substring(2, 9);
+        return `${group1}"${randomStr}", {`;
+      })
+      .trim()
+
+    const compiledRegisterTemplate = new Function(templateString)
+
+    return () => compiledRegisterTemplate.bind(this)()
+  }
+
   #mountStyles() {
     const styleElement = document.createElement("style")
     styleElement.media = "max-width: 1px"
@@ -130,7 +135,7 @@ export class Component {
     document.head.appendChild(styleElement)
 
     const parsedStyles = Array.from(styleElement.sheet.cssRules, ({ selectorText, style }) => {
-      return `${selectorText}[data-__${this.#id}] { ${style.cssText} }`
+      return `${selectorText}[data-${this.#id}] { ${style.cssText} }`
     })
 
     styleElement.innerHTML = parsedStyles.join("\n")
@@ -142,7 +147,7 @@ export class Component {
 
     instanceKeys.forEach(instanceKey => {
       const instance = Component.#instances.get(instanceKey)
-      const selector = `[data-__${instance.#id}][data-on]`
+      const selector = `[data-${instance.#id}][data-on]`
 
       const elements = element.parentNode.querySelectorAll(selector)
 
@@ -154,44 +159,21 @@ export class Component {
   }
 
   #bindElementToDom(element) {
-    const targetElement = document.activeElement
-    const selectionStart = targetElement.selectionStart
-    const selectionEnd = targetElement.selectionEnd
-    window.getSelection().removeAllRanges()
-    const rootQuery = `[data-__${this.#id}="root----"]`
+    const activeSelector = document.activeElement?.dataset?.reactive
+    const selectionStart = document.activeElement?.selectionStart
+    const selectionEnd = document.activeElement?.selectionEnd
+    const rootQuery = `[data-${this.#id}][data-root]`
     document.querySelector(rootQuery)?.replaceWith(element)
-
-    if (targetElement.nodeName !== "BODY") {
-      const newActiveElement = this.#findActiveElement(targetElement)
-      newActiveElement?.focus()
+    const newActiveElement = document.querySelector(`[data-reactive="${activeSelector}"]`)
+    if (newActiveElement) {
+      newActiveElement.focus()
       try {
-        newActiveElement?.setSelectionRange(selectionStart, selectionEnd)
+        newActiveElement.setSelectionRange(selectionStart, selectionEnd)
       } catch {
         true
       }
     }
-
     this.#root = false
-  }
-
-  #findActiveElement(targetElement) {
-    const isRoot = Object.entries(targetElement.dataset).find(([_, value]) =>
-      value.includes("root----"),
-    )
-
-    if (isRoot) {
-      const [key, value] = isRoot
-      return document.querySelector(`${targetElement.nodeName}[data-${key}="${value}"]`)
-    }
-
-    const siblings = Array.from(targetElement.parentNode.children).filter(
-      sibling => sibling.nodeType === Node.ELEMENT_NODE,
-    )
-    const index = siblings.indexOf(targetElement) + 1
-
-    return this.#findActiveElement(targetElement.parentNode)?.querySelector(
-      `${targetElement.tagName}:nth-child(${index})`,
-    )
   }
 
   #executeWatchers(watchers, state, keyPath) {
@@ -223,76 +205,79 @@ export class Component {
     }
 
     const undeclaredProps = Object.keys(this.#propDefinitions).filter(p =>
-      this.#propDefinitions[p] ? !this.props[p] : false,
+      this.#propDefinitions[p] ? !(p in this.props) : false,
     )
     if (undeclaredProps.length) {
       throw new Error(`Missing props: ${this.constructor.name} - ${undeclaredProps.join(",")}`)
     }
+    
+    if (Object.keys(this.state).length === 0) {
+      const sanitizeState = state => {
+        return state
+          .replace(/&/g, "&amp;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+      }
 
-    const sanitizeState = state => {
-      return state
-        .replace(/&/g, "&amp;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
+      const state = this.registerState()
+      const self = this
+
+      this.state = new Proxy(state, {
+        get(stateObject, propertyName) {
+          if (typeof stateObject[propertyName] === "object" && stateObject[propertyName] !== null) {
+            return new Proxy(stateObject[propertyName], self.state)
+          } else if (typeof stateObject[propertyName] === "string") {
+            return sanitizeState(stateObject[propertyName])
+          } else {
+            return stateObject[propertyName]
+          }
+        },
+        set: (stateObject, propertyName, newPropertyValue) => {
+          if (stateObject[propertyName] != newPropertyValue) {
+            stateObject[propertyName] = newPropertyValue
+            self.#root = true
+            self.onUpdate()
+            self.render(propertyName)
+            self.onUpdated()
+          }
+          return true
+        },
+      })
     }
 
-    const state = this.registerState()
-    const self = this
-
-    const proxy = new Proxy(state, {
-      get(stateObject, propertyName) {
-        if (typeof stateObject[propertyName] === "object" && stateObject[propertyName] !== null) {
-          return new Proxy(stateObject[propertyName], self.state)
-        } else if (typeof stateObject[propertyName] === "string") {
-          return sanitizeState(stateObject[propertyName])
-        } else {
-          return stateObject[propertyName]
-        }
-      },
-      set: (stateObject, propertyName, newPropertyValue) => {
-        if (stateObject[propertyName] != newPropertyValue) {
-          stateObject[propertyName] = newPropertyValue
-          self.#root = true
-          self.onUpdate()
-          self.render()
-          self.onUpdated()
-        }
-        return true
-      },
-    })
-
-    this.state = proxy
-
-    const element = this.render()
+    const elementOrTemplate = this.render()
 
     this.onMounted()
-    return root ? element : element.outerHTML
+    return elementOrTemplate
   }
 
-  render() {
-    const containerElement = document.createElement("div")
-
-    const template = this.registerTemplate()
-    containerElement.innerHTML = template
-      .replace(/(?<=<[^\/][^>]*)(?<!----")>/g, ` data-__${this.#id}="----">`)
-      .replace(/\n/g, "")
-
-    if (containerElement.childElementCount > 1) {
-      throw new Error(`Component ${this.constructor.name} must have a single root element`)
-    }
-
-    const element = containerElement.firstElementChild
-    element.dataset[`__${this.#id}`] = "root----"
+  render () {
+    const template = this.compiledTemplate()
 
     if (this.#root) {
+      const containerElement = document.createElement("div")
+      containerElement.innerHTML = template
+
+      if (containerElement.children.length > 1) {
+        throw new Error(`Component must have a single root element: ${this.constructor.name}`)
+      }
+
+      const element = containerElement.firstElementChild
+
       this.#bindEventsToElement(element)
       this.#bindElementToDom(element)
+      this.#executeWatchers(this.#watchers, this.state, [])
+      return element
+    } else {
+      return template
     }
+  }
 
-    this.#executeWatchers(this.#watchers, this.state, [])
-
-    return element
+  _debugLog() {
+    if (this._debug) {
+      console.log(...arguments, this.constructor.name)
+    }
   }
 }

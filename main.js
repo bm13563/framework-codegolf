@@ -113,3 +113,6 @@ document.head.appendChild(globalStyles)
 
 const page = new Page()
 document.body.appendChild(page.mount({}, true))
+
+window.addEventListener("focus", (event) => {
+}, true)
